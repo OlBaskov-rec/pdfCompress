@@ -11,16 +11,24 @@ public enum SizeUnit
     Gigabytes = 3,
 }
 
-/// <summary>Перевод «число + единица» в байты и обратно, плюс человекочитаемый формат.</summary>
+/// <summary>
+/// Перевод «число + единица» в байты и обратно, плюс человекочитаемый формат.
+///
+/// Счёт ДЕСЯТИЧНЫЙ: 1 КБ = 1000 Б, 1 МБ = 1 000 000 Б. Именно так «мегабайт» понимают почтовые
+/// системы и государственные порталы, куда эти документы и отправляют, — а значит, это самое
+/// строгое из возможных прочтений: файл, уложившийся в десятичный предел, уложится и в двоичный.
+/// Проводник Windows считает по-другому (в кибибайтах, подписывая их как КБ), поэтому его цифры
+/// будут чуть меньше наших — но ошибиться в опасную сторону при таком счёте нельзя.
+/// </summary>
 public static class SizeUnits
 {
-    /// <summary>Множитель единицы в байтах (двоичные килобайты: 1 КБ = 1024 Б).</summary>
+    /// <summary>Множитель единицы в байтах (десятичный счёт: 1 КБ = 1000 Б).</summary>
     public static long Multiplier(SizeUnit unit) => unit switch
     {
         SizeUnit.Bytes => 1L,
-        SizeUnit.Kilobytes => 1024L,
-        SizeUnit.Megabytes => 1024L * 1024,
-        SizeUnit.Gigabytes => 1024L * 1024 * 1024,
+        SizeUnit.Kilobytes => 1_000L,
+        SizeUnit.Megabytes => 1_000_000L,
+        SizeUnit.Gigabytes => 1_000_000_000L,
         _ => throw new ArgumentOutOfRangeException(nameof(unit), unit, "Неизвестная единица измерения."),
     };
 
@@ -50,9 +58,9 @@ public static class SizeUnits
 
         double value = bytes;
         int i = 0;
-        while (value >= 1024 && i < names.Length - 1)
+        while (value >= 1000 && i < names.Length - 1)
         {
-            value /= 1024;
+            value /= 1000;
             i++;
         }
 

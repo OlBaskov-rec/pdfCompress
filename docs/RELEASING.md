@@ -52,7 +52,7 @@ Velopack через GitHub API находит **последний релиз-т
 ## Шаг 2. Сборка пакета
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File build\pack-win.ps1 -Version 0.1.0
+powershell -ExecutionPolicy Bypass -File build\pack-win.ps1 -Version X.Y.Z
 ```
 
 Скрипт делает `dotnet tool restore`, self-contained `publish` под `win-x64` и `vpk pack`.
@@ -72,11 +72,29 @@ powershell -ExecutionPolicy Bypass -File build\pack-win.ps1 -Version 0.1.0
 
 ## Шаг 3. Публикация в GitHub Releases
 
-Автоматически (нужен PAT с правом **Contents: Read and write** на репозиторий):
+**Проще всего — через уже сохранённую авторизацию GitHub.** Если на машине настроен Git
+Credential Manager и вы хоть раз входили в GitHub через браузер, токен уже лежит в хранилище
+Windows, и отдельный PAT заводить не нужно:
+
+```bash
+TOK=$(printf 'protocol=https\nhost=github.com\n\n' | git credential fill | grep '^password=' | cut -d= -f2-)
+```
+
+```bash
+GITHUB_TOKEN="$TOK" powershell -ExecutionPolicy Bypass -File build/pack-win.ps1 -Version 0.1.2 -Upload
+```
+
+GCM отдаёт OAuth-токен вида `gho_…` с правами `gist, repo, workflow` — `repo` покрывает создание
+релизов. Проверить права, ничего не публикуя:
+`curl -sI -H "Authorization: Bearer $TOK" https://api.github.com/user | grep -i x-oauth-scopes`.
+
+> Токен нигде не сохраняем и не печатаем: он живёт только в переменной окружения одной команды.
+
+Либо обычным путём, с личным токеном (нужны права **Contents: Read and write** на репозиторий):
 
 ```powershell
 $env:GITHUB_TOKEN = "<github_pat_...>"
-powershell -ExecutionPolicy Bypass -File build\pack-win.ps1 -Version 0.1.0 -Upload
+powershell -ExecutionPolicy Bypass -File build\pack-win.ps1 -Version 0.1.2 -Upload
 ```
 
 Вручную: GitHub → Releases → Draft new release → тег `vX.Y.Z` → приложить **все** файлы из
@@ -93,7 +111,7 @@ powershell -ExecutionPolicy Bypass -File build\pack-win.ps1 -Version 0.1.0 -Uplo
 Плумбинг в скрипте готов: параметр `-SignParams` пробрасывается в `vpk --signParams`, например
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File build\pack-win.ps1 -Version 0.1.0 `
+powershell -ExecutionPolicy Bypass -File build\pack-win.ps1 -Version X.Y.Z `
   -SignParams "/fd SHA256 /sha1 <ОТПЕЧАТОК>"
 ```
 

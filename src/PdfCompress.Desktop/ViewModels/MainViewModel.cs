@@ -139,7 +139,7 @@ public partial class MainViewModel : ObservableObject
         SizeUnits.TryToBytes((double)MaxSizeValue, SelectedUnit.Unit, out long bytes) ? bytes : 0;
 
     public string TargetSizeHint => TargetBytes > 0
-        ? $"каждый файл будет ужат до {SizeUnits.Format(TargetBytes)} или меньше"
+        ? $"ни один файл не будет больше {TargetBytes:N0} Б — счёт строгий (1 МБ = 1 000 000 Б), плюс запас 2 %"
         : "укажите размер больше нуля";
 
     // ── Результаты ─────────────────────────────────────────────────────────────────────────

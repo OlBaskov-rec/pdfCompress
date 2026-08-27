@@ -100,6 +100,38 @@ public class PdfCompressionServiceTests : IDisposable
     }
 
     [Fact]
+    public void Compress_ПоРазмеру_ОставляетЗапасПодПределом()
+    {
+        // Двоичный поиск сам по себе подводит файл вплотную к границе, и документ выходит
+        // ровно «под мегабайт»: приёмник, считающий чуть иначе, такой файл уже не возьмёт.
+        // Движок обязан целиться ниже предела.
+        string source = WriteSource(TestPdfBuilder.WithPhotoPages(pageCount: 3));
+        long target = new FileInfo(source).Length / 4;
+        string output = OutputPath();
+
+        var result = _service.Compress(source, output, CompressionRequest.ForTargetSize(target));
+
+        Assert.Equal(CompressionOutcome.Compressed, result.Outcome);
+        Assert.True(result.ResultBytes <= target * 0.98,
+            $"ожидался запас: результат {result.ResultBytes} против предела {target}");
+    }
+
+    [Fact]
+    public void Compress_ПоРазмеру_ЕслиСжатьНеУдалось_ЧестноГоворитЧтоПределНеСоблюдён()
+    {
+        // Сжимать нечего, поэтому записывается оригинал — а он в предел не влезает.
+        // Отчёт обязан говорить правду о том, что реально лежит на диске.
+        string source = WriteSource(TestPdfBuilder.VectorOnly());
+        long original = new FileInfo(source).Length;
+        string output = OutputPath();
+
+        var result = _service.Compress(source, output, CompressionRequest.ForTargetSize(original / 2));
+
+        Assert.Equal(CompressionOutcome.TargetNotReached, result.Outcome);
+        Assert.True(new FileInfo(output).Length > original / 2);
+    }
+
+    [Fact]
     public void Compress_ПоРазмеру_ФайлУжеМеньшеПредела_КопируетБезИзменений()
     {
         string source = WriteSource(TestPdfBuilder.VectorOnly());

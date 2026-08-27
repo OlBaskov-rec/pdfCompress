@@ -20,6 +20,15 @@ public class PdfCompressionService
     /// </summary>
     private const int RefinementSteps = 4;
 
+    /// <summary>
+    /// Запас, с которым целимся в предельный размер. Двоичный поиск по определению подводит
+    /// результат вплотную к границе — файл выходил ровно «под мегабайт», и любой приёмник,
+    /// считающий чуть иначе, такой документ уже не берёт. Метим на 2 % ниже: 1 МБ превращается
+    /// в 980 000 байт. Если с запасом не выходит, а в сам предел — выходит, это всё равно успех:
+    /// требование пользователя выполнено, просто без люфта.
+    /// </summary>
+    private const double TargetSafetyMargin = 0.02;
+
     private readonly PdfImageRecompressor _recompressor = new();
 
     /// <summary>Обрабатывает один файл согласно заданию и записывает результат.</summary>
@@ -56,6 +65,14 @@ public class PdfCompressionService
 
             Write(outputPath, payload);
 
+            var outcome = useCompressed ? attempt.Outcome : DowngradeOutcome(attempt.Outcome);
+
+            // Последняя проверка по факту записанного: в режиме предельного размера отчёт обязан
+            // говорить правду о том, что лежит на диске. Сюда попадает случай, когда сжатие
+            // не помогло и записан оригинал — он предел не соблюдает.
+            if (request.Mode == CompressionMode.TargetSize && payload.LongLength > request.TargetBytes)
+                outcome = CompressionOutcome.TargetNotReached;
+
             return new FileCompressionResult
             {
                 SourcePath = sourcePath,
@@ -63,7 +80,7 @@ public class PdfCompressionService
                 OriginalBytes = original.LongLength,
                 ResultBytes = payload.LongLength,
                 OutputPath = outputPath,
-                Outcome = useCompressed ? attempt.Outcome : DowngradeOutcome(attempt.Outcome),
+                Outcome = outcome,
                 ImagesRecompressed = attempt.Images,
                 ImagesTotal = attempt.ImagesTotal,
                 Attempts = attempt.Attempts,
@@ -94,7 +111,8 @@ public class PdfCompressionService
     }
 
     /// <summary>
-    /// Подбирает самые щадящие параметры, при которых файл всё ещё влезает в заданный предел.
+    /// Подбирает самые щадящие параметры, при которых файл всё ещё влезает в заданный предел
+    /// (целясь на <see cref="TargetSafetyMargin"/> ниже него, чтобы остался люфт).
     ///
     /// Сначала пробуем максимальное сжатие: если даже оно не укладывается в предел, дальше искать
     /// нечего. Если укладывается — двоичным поиском по шкале «силы» идём в сторону лучшего
@@ -108,12 +126,23 @@ public class PdfCompressionService
         if (original.LongLength <= targetBytes)
             return new Attempt(original, 0, 0, 0, CompressionOutcome.AlreadySmallEnough);
 
+        // Метим ниже предела, но не ниже одного байта — на крошечных пределах округление
+        // не должно обнулить цель.
+        long aim = Math.Max(1, (long)Math.Floor(targetBytes * (1 - TargetSafetyMargin)));
+
         int attempts = 1;
         var strongest = CompressOnce(original, CompressionOptions.ForStrength(1.0), cancellationToken);
-        if (strongest.Bytes.LongLength > targetBytes)
+        long strongestSize = strongest.Bytes.LongLength;
+
+        if (strongestSize > targetBytes)
             return new Attempt(strongest.Bytes, strongest.Images.Replaced, strongest.Images.Total, attempts, CompressionOutcome.TargetNotReached);
 
-        // best — самый качественный из уже найденных вариантов, который влезает в предел.
+        // Даже максимальное сжатие не дало запаса, но в сам предел уложилось — требование
+        // выполнено, искать более мягкий вариант бессмысленно.
+        if (strongestSize > aim)
+            return new Attempt(strongest.Bytes, strongest.Images.Replaced, strongest.Images.Total, attempts, CompressionOutcome.Compressed);
+
+        // best — самый качественный из уже найденных вариантов, который влезает с запасом.
         var best = strongest;
         double low = 0.0, high = 1.0;
 
@@ -125,7 +154,7 @@ public class PdfCompressionService
             var candidate = CompressOnce(original, CompressionOptions.ForStrength(middle), cancellationToken);
             attempts++;
 
-            if (candidate.Bytes.LongLength <= targetBytes)
+            if (candidate.Bytes.LongLength <= aim)
             {
                 best = candidate;
                 high = middle; // влезло — пробуем ещё мягче
