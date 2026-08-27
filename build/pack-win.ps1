@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Сборка portable Windows-релиза PDF Compress через Velopack.
 
@@ -70,6 +70,24 @@ try {
     Write-Host "==> publish self-contained $rid" -ForegroundColor Cyan
     if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
     dotnet publish $proj -c Release -r $rid --self-contained true -o $publishDir
+
+    # Velopack НЕ перезаписывает артефакты версии, которая уже лежит в Releases: повторная
+    # сборка той же версии молча оставит СТАРЫЙ пакет, и в релиз уедет прошлая сборка.
+    # Поэтому чистим артефакты именно этой версии. Пакеты прошлых версий трогать нельзя —
+    # по ним Velopack собирает delta-обновления.
+    if (Test-Path $releaseDir) {
+        $stale = @(
+            "$packId-$Version-full.nupkg",
+            "$packId-$Version-delta.nupkg",
+            "$packId-win-Portable.zip",
+            "$packId-win-Setup.exe"
+        ) | ForEach-Object { Join-Path $releaseDir $_ } | Where-Object { Test-Path $_ }
+
+        if ($stale) {
+            Write-Host "==> Удаляю прошлые артефакты версии $Version" -ForegroundColor Cyan
+            $stale | ForEach-Object { Write-Host "    $(Split-Path $_ -Leaf)"; Remove-Item $_ -Force }
+        }
+    }
 
     Write-Host "==> vpk pack" -ForegroundColor Cyan
     $packArgs = @(
