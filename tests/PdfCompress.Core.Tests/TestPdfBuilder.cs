@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.IO.Compression;
+using System.Text;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 using SkiaSharp;
@@ -60,6 +63,69 @@ internal static class TestPdfBuilder
 
         using var output = new MemoryStream();
         document.Save(output, false);
+        return output.ToArray();
+    }
+
+    /// <summary>
+    /// Страница, растр которой обёрнут ЦЕПОЧКОЙ фильтров <c>[/FlateDecode /DCTDecode]</c> —
+    /// то есть JPEG, поверх упакованный ещё и Flate. Так пишут многие сканеры и МФУ, и именно
+    /// на таких файлах движок когда-то молча не делал ничего.
+    ///
+    /// Собирается вручную, низкоуровневым API: <c>XGraphics.DrawImage</c> всегда кладёт
+    /// одиночный <c>/DCTDecode</c> и нужную цепочку не воспроизводит.
+    /// </summary>
+    public static byte[] WithFlateWrappedJpegPage(int imageWidth = 1600, int imageHeight = 2200)
+    {
+        byte[] jpeg = PhotoJpeg(imageWidth, imageHeight);
+        byte[] wrapped = Deflate(jpeg);
+
+        using var document = new PdfDocument();
+        var page = document.AddPage();
+        page.Width = XUnit.FromPoint(A4WidthPt);
+        page.Height = XUnit.FromPoint(A4HeightPt);
+
+        var image = new PdfDictionary(document);
+        image.Elements.SetName("/Type", "/XObject");
+        image.Elements.SetName("/Subtype", "/Image");
+        image.Elements.SetInteger("/Width", imageWidth);
+        image.Elements.SetInteger("/Height", imageHeight);
+        image.Elements.SetInteger("/BitsPerComponent", 8);
+        image.Elements.SetName("/ColorSpace", "/DeviceRGB");
+
+        var filters = new PdfArray(document);
+        filters.Elements.Add(new PdfName("/FlateDecode"));
+        filters.Elements.Add(new PdfName("/DCTDecode"));
+        image.Elements["/Filter"] = filters;
+
+        image.CreateStream(wrapped);
+        document.Internals.AddObject(image);
+
+        var xobjects = new PdfDictionary(document);
+        xobjects.Elements.SetReference("/Im0", image);
+        var resources = new PdfDictionary(document);
+        resources.Elements["/XObject"] = xobjects;
+        page.Elements["/Resources"] = resources;
+
+        // Числа в потоке содержимого — только через инвариантную культуру: с запятой
+        // в качестве разделителя PDF станет нечитаемым.
+        string draw = string.Format(CultureInfo.InvariantCulture,
+            "q {0:0.##} 0 0 {1:0.##} 0 0 cm /Im0 Do Q", A4WidthPt, A4HeightPt);
+        var content = new PdfDictionary(document);
+        content.CreateStream(Encoding.ASCII.GetBytes(draw));
+        document.Internals.AddObject(content);
+        page.Elements.SetReference("/Contents", content);
+
+        using var output = new MemoryStream();
+        document.Save(output, false);
+        return output.ToArray();
+    }
+
+    /// <summary>Упаковка в zlib — именно этот формат ожидает фильтр /FlateDecode.</summary>
+    private static byte[] Deflate(byte[] data)
+    {
+        using var output = new MemoryStream();
+        using (var zlib = new ZLibStream(output, CompressionLevel.SmallestSize, leaveOpen: true))
+            zlib.Write(data, 0, data.Length);
         return output.ToArray();
     }
 

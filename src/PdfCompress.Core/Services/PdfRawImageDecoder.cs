@@ -32,28 +32,17 @@ internal static class PdfRawImageDecoder
     /// Декодирует растр в 32-битный BGRA-битмап. Возвращает null, если формат не поддержан
     /// или данных меньше, чем обещают /Width и /Height.
     /// </summary>
-    public static SKBitmap? TryDecode(PdfDictionary image, int width, int height)
+    /// <param name="samples">
+    /// Уже освобождённые от фильтров отсчёты (см. <see cref="PdfStreamFilters.TryUnwrap"/>).
+    /// </param>
+    public static SKBitmap? TryDecode(PdfDictionary image, byte[] samples, int width, int height)
     {
-        if (image.Stream is null)
-            return null;
-
         int bpc = image.Elements.GetInteger("/BitsPerComponent");
         if (bpc != 8)
             return null;
 
         if (!TryGetColorKind(image, out var kind))
             return null;
-
-        byte[] samples;
-        try
-        {
-            samples = image.Stream.UnfilteredValue;
-        }
-        catch (Exception)
-        {
-            // Неизвестный или битый фильтр — изображение оставляем как есть.
-            return null;
-        }
 
         int components = kind switch { ColorKind.Gray => 1, ColorKind.Rgb => 3, _ => 4 };
         long needed = (long)width * height * components;

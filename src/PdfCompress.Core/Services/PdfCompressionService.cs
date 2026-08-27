@@ -65,6 +65,7 @@ public class PdfCompressionService
                 OutputPath = outputPath,
                 Outcome = useCompressed ? attempt.Outcome : DowngradeOutcome(attempt.Outcome),
                 ImagesRecompressed = attempt.Images,
+                ImagesTotal = attempt.ImagesTotal,
                 Attempts = attempt.Attempts,
             };
         }
@@ -84,12 +85,12 @@ public class PdfCompressionService
     }
 
     /// <summary>Результат одного задания до записи на диск.</summary>
-    private readonly record struct Attempt(byte[] Bytes, int Images, int Attempts, CompressionOutcome Outcome);
+    private readonly record struct Attempt(byte[] Bytes, int Images, int ImagesTotal, int Attempts, CompressionOutcome Outcome);
 
     private Attempt CompressToLevel(byte[] original, CompressionLevel level, CancellationToken cancellationToken)
     {
-        var (bytes, images) = CompressOnce(original, CompressionOptions.ForLevel(level), cancellationToken);
-        return new Attempt(bytes, images, 1, CompressionOutcome.Compressed);
+        var pass = CompressOnce(original, CompressionOptions.ForLevel(level), cancellationToken);
+        return new Attempt(pass.Bytes, pass.Images.Replaced, pass.Images.Total, 1, CompressionOutcome.Compressed);
     }
 
     /// <summary>
@@ -105,12 +106,12 @@ public class PdfCompressionService
             throw new ArgumentOutOfRangeException(nameof(targetBytes), "Предельный размер должен быть больше нуля.");
 
         if (original.LongLength <= targetBytes)
-            return new Attempt(original, 0, 0, CompressionOutcome.AlreadySmallEnough);
+            return new Attempt(original, 0, 0, 0, CompressionOutcome.AlreadySmallEnough);
 
         int attempts = 1;
         var strongest = CompressOnce(original, CompressionOptions.ForStrength(1.0), cancellationToken);
         if (strongest.Bytes.LongLength > targetBytes)
-            return new Attempt(strongest.Bytes, strongest.Images, attempts, CompressionOutcome.TargetNotReached);
+            return new Attempt(strongest.Bytes, strongest.Images.Replaced, strongest.Images.Total, attempts, CompressionOutcome.TargetNotReached);
 
         // best — самый качественный из уже найденных вариантов, который влезает в предел.
         var best = strongest;
@@ -135,11 +136,11 @@ public class PdfCompressionService
             }
         }
 
-        return new Attempt(best.Bytes, best.Images, attempts, CompressionOutcome.Compressed);
+        return new Attempt(best.Bytes, best.Images.Replaced, best.Images.Total, attempts, CompressionOutcome.Compressed);
     }
 
     /// <summary>Один полный проход сжатия документа с заданными параметрами.</summary>
-    private (byte[] Bytes, int Images) CompressOnce(
+    private (byte[] Bytes, PdfImageRecompressor.ImageTally Images) CompressOnce(
         byte[] source,
         CompressionOptions options,
         CancellationToken cancellationToken)
@@ -149,7 +150,7 @@ public class PdfCompressionService
         using var input = new MemoryStream(source, writable: false);
         using var document = PdfReader.Open(input, PdfDocumentOpenMode.Modify);
 
-        int images = _recompressor.Process(document, options, cancellationToken);
+        var images = _recompressor.Process(document, options, cancellationToken);
 
         document.Options.NoCompression = false;
         document.Options.CompressContentStreams = true;

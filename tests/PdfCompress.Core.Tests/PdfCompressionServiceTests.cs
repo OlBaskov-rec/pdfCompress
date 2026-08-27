@@ -63,6 +63,26 @@ public class PdfCompressionServiceTests : IDisposable
     }
 
     [Fact]
+    public void Compress_РастрВЦепочкеФильтров_ВсёРавноПересжимается()
+    {
+        // Сканеры часто пишут JPEG, обёрнутый ещё и во Flate: /Filter [/FlateDecode /DCTDecode].
+        // Пока цепочка не разбиралась, такие документы «сжимались» на 0 % — молча и без ошибки.
+        string source = WriteSource(TestPdfBuilder.WithFlateWrappedJpegPage());
+        string output = OutputPath();
+
+        var result = _service.Compress(source, output, CompressionRequest.ForLevel(CompressionLevel.Medium));
+
+        Assert.Equal(CompressionOutcome.Compressed, result.Outcome);
+        Assert.True(result.ImagesRecompressed > 0,
+            "растр под цепочкой фильтров обязан попасть под пересжатие");
+        Assert.True(result.ResultBytes < result.OriginalBytes,
+            $"ожидалось уменьшение: было {result.OriginalBytes}, стало {result.ResultBytes}");
+
+        using var compressed = PdfReader.Open(output, PdfDocumentOpenMode.Import);
+        Assert.Equal(1, compressed.PageCount);
+    }
+
+    [Fact]
     public void Compress_ПоРазмеру_УкладываетсяВЗаданныйПредел()
     {
         string source = WriteSource(TestPdfBuilder.WithPhotoPages(pageCount: 3));

@@ -22,11 +22,17 @@ public sealed class PdfImageRecompressor
     /// <summary>Ниже этого размера перекодировать нечего — накладные расходы съедят выигрыш.</summary>
     private const int MinSideForResize = 8;
 
+    /// <summary>Итог обхода растров: сколько заменили и сколько всего нашли.</summary>
+    /// <param name="Replaced">Растры, поток которых реально заменён на меньший.</param>
+    /// <param name="Total">Все растры документа, включая пропущенные.</param>
+    public readonly record struct ImageTally(int Replaced, int Total);
+
     /// <summary>
-    /// Обрабатывает все растры документа. Возвращает число реально заменённых изображений.
-    /// Изображение, которое не удалось разобрать, молча остаётся в исходном виде.
+    /// Обрабатывает все растры документа. Изображение, которое не удалось разобрать, молча
+    /// остаётся в исходном виде — но попадает в <see cref="ImageTally.Total"/>, чтобы разница
+    /// «растров не было вовсе» и «растры не взяли» была видна в отчёте.
     /// </summary>
-    public int Process(PdfDocument document, CompressionOptions options, CancellationToken cancellationToken = default)
+    public ImageTally Process(PdfDocument document, CompressionOptions options, CancellationToken cancellationToken = default)
     {
         var placements = ImagePlacementAnalyzer.Analyze(document);
         var images = CollectImages(document);
@@ -53,7 +59,7 @@ public sealed class PdfImageRecompressor
             }
         }
 
-        return replaced;
+        return new ImageTally(replaced, images.Count);
     }
 
     private static List<PdfDictionary> CollectImages(PdfDocument document)
@@ -164,14 +170,19 @@ public sealed class PdfImageRecompressor
         return true;
     }
 
-    /// <summary>JPEG декодирует Skia; всё остальное собираем из сырых отсчётов сами.</summary>
+    /// <summary>
+    /// Снимает с потока цепочку фильтров, а дальше: JPEG отдаёт Skia, сырые отсчёты собирает сам.
+    /// </summary>
     private static SKBitmap? Decode(PdfDictionary image, int width, int height)
     {
-        if (FilterOf(image) == "/DCTDecode")
+        if (!PdfStreamFilters.TryUnwrap(image, out byte[] payload, out string terminal))
+            return null;
+
+        if (terminal == PdfStreamFilters.Dct)
         {
             try
             {
-                return SKBitmap.Decode(image.Stream!.Value);
+                return SKBitmap.Decode(payload);
             }
             catch (Exception)
             {
@@ -179,19 +190,7 @@ public sealed class PdfImageRecompressor
             }
         }
 
-        return PdfRawImageDecoder.TryDecode(image, width, height);
-    }
-
-    /// <summary>Имя единственного фильтра потока; для цепочки фильтров — пустая строка.</summary>
-    private static string FilterOf(PdfDictionary image)
-    {
-        var filter = PdfRawImageDecoder.Resolve(image.Elements.GetValue("/Filter"));
-        return filter switch
-        {
-            PdfName name => name.Value,
-            PdfArray array when array.Elements.Count == 1 => array.Elements.GetName(0),
-            _ => string.Empty,
-        };
+        return PdfRawImageDecoder.TryDecode(image, payload, width, height);
     }
 
     /// <summary>

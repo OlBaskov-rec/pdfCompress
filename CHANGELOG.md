@@ -4,6 +4,25 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект придерживается [семантического версионирования](https://semver.org/lang/ru/).
 
+## [0.1.1] — 2026-08-27
+
+**EN — Fixed:** scans whose images carry a **filter chain** — `/Filter [/FlateDecode /DCTDecode]`,
+that is JPEG additionally wrapped in Flate, which is what many scanners and MFPs write — were
+silently left untouched: only a single filter was understood, so such a batch "compressed" by 0 %.
+The chain is now unwound (Flate, ASCII85, ASCIIHex, RunLength as transport filters, JPEG as the
+terminal one) and the image is recompressed normally. On a real batch of 56 scanned contracts this
+turned 0 % into roughly a threefold reduction. Images using a predictor (`/DecodeParms
+/Predictor`) are now explicitly skipped rather than decoded incorrectly.
+
+**RU — Исправлено:** сканы, у которых растр лежит под **цепочкой фильтров** —
+`/Filter [/FlateDecode /DCTDecode]`, то есть JPEG, поверх упакованный ещё и Flate (так пишут
+многие сканеры и МФУ), — молча оставались нетронутыми: разбирался только одиночный фильтр, и
+такая пачка «сжималась» на 0 %. Теперь цепочка разворачивается (Flate, ASCII85, ASCIIHex,
+RunLength как транспортные фильтры, JPEG как терминальный), и растр пересжимается как обычно.
+На реальной пачке из 56 сканированных договоров это превратило 0 % в сжатие примерно втрое.
+Растры с предиктором (`/DecodeParms /Predictor`) теперь явно пропускаются, а не декодируются
+неверно.
+
 ## [0.1.0] — 2026-08-27
 
 **EN — Added:** first working version. Pick a folder and the window lists only its PDF files with

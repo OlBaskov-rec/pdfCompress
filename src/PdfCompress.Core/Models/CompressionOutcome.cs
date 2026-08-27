@@ -40,6 +40,13 @@ public sealed record FileCompressionResult
     /// <summary>Сколько растров пересжато.</summary>
     public int ImagesRecompressed { get; init; }
 
+    /// <summary>
+    /// Сколько растров вообще нашлось в документе. Вместе с <see cref="ImagesRecompressed"/>
+    /// отвечает на главный вопрос при разборе «почему не ужалось»: картинок не было вовсе
+    /// или их формат мы не берём.
+    /// </summary>
+    public int ImagesTotal { get; init; }
+
     /// <summary>Сколько проходов сжатия понадобилось (в режиме подбора под размер — больше одного).</summary>
     public int Attempts { get; init; } = 1;
 
