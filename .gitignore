@@ -1,0 +1,52 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Pp]ublish/
+[Pp]ublishes/
+artifacts/
+Releases/
+
+# Velopack / packaging output
+*.nupkg
+*.snupkg
+*-Setup.exe
+*-Portable.zip
+
+# Visual Studio / Rider / VS Code
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.csproj.user
+
+# Rider
+*.DotSettings.user
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# NuGet
+*.nuget.props
+*.nuget.targets
+.nuget/
+
+# Секреты подписи (приватные ключи никогда не коммитим; .cer — публичный, можно)
+*.pfx
+*.snk
+*.p12
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# User-specific
+*.log

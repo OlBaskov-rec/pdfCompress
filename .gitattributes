@@ -1,0 +1,21 @@
+# Нормализация переводов строк (проект редактируется на нескольких машинах)
+* text=auto
+
+# .NET / исходники — CRLF в рабочей копии на Windows
+*.cs        text eol=crlf
+*.csproj    text eol=crlf
+*.sln       text eol=crlf
+*.axaml     text eol=crlf
+*.xaml      text eol=crlf
+*.json      text eol=crlf
+*.md        text eol=crlf
+*.ps1       text eol=crlf
+
+# Скрипты для Unix/CI
+*.sh        text eol=lf
+
+# Бинарные файлы
+*.pdf       binary
+*.png       binary
+*.ico       binary
+*.icns      binary
