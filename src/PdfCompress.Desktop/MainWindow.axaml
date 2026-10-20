@@ -7,15 +7,15 @@
         x:Class="PdfCompress.Desktop.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="PDF Compress"
-        Width="900" Height="800"
-        MinWidth="720" MinHeight="620"
+        Width="920" Height="860"
+        MinWidth="760" MinHeight="700"
         WindowStartupLocation="CenterScreen">
 
   <Window.Styles>
     <!-- Заголовок раздела -->
     <Style Selector="TextBlock.section">
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Margin" Value="0,0,0,6" />
+      <Setter Property="Margin" Value="0,0,0,4" />
     </Style>
 
     <!-- Пояснение мелким шрифтом -->
@@ -23,6 +23,21 @@
       <Setter Property="Opacity" Value="0.7" />
       <Setter Property="FontSize" Value="12" />
       <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- Тонкая линия-разделитель между разделами -->
+    <Style Selector="Border.rule">
+      <Setter Property="Height" Value="1" />
+      <Setter Property="Background" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- Стрелка на разделителе: показывает, куда движется работа -->
+    <Style Selector="TextBlock.flowArrow">
+      <Setter Property="Opacity" Value="0.35" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Margin" Value="12,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
     <!-- Блок способа сжатия: неактивный приглушён и обведён серым -->
@@ -44,12 +59,83 @@
       <Setter Property="Padding" Value="16,8" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
+
+    <!-- Значок «О программе» зеленеет и мигает, когда найдено обновление -->
+    <Style Selector="Button.updateAvailable /template/ ContentPresenter">
+      <Setter Property="Background" Value="#3A8A3F" />
+    </Style>
+    <Style Selector="Button.updateAvailable:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#2E6F33" />
+    </Style>
+    <Style Selector="Button.updateAvailable">
+      <Setter Property="Foreground" Value="White" />
+      <Style.Animations>
+        <Animation Duration="0:0:0.8" IterationCount="5">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.4" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
   </Window.Styles>
 
-  <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto,Auto,Auto,*,Auto" RowSpacing="10">
+  <!--
+    Списки (строки со звёздочкой) намеренно БЕЗ MinHeight: при нехватке высоты они сжимаются
+    вплоть до нуля, и разделы никогда не наезжают друг на друга. Раньше у них был MinHeight,
+    и при сжатии окна по вертикали сумма фиксированных строк превышала доступную высоту —
+    Grid не обрезает содержимое, а накладывает строки одну на другую.
+
+    До нуля списки на практике не доходят: MinHeight окна подобран так, чтобы при самом
+    маленьком размере оба списка оставались видимыми хотя бы на пару строк.
+  -->
+  <Grid Margin="16" RowSpacing="6"
+        RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto">
+
+    <!-- ── Шапка: имя программы и «О программе» ─────────────────────────────────────── -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+      <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <TextBlock Text="PDF Compress" FontSize="17" FontWeight="Bold" />
+        <TextBlock Text="пакетное сжатие PDF" Classes="hint" VerticalAlignment="Bottom" Margin="0,0,0,3" />
+      </StackPanel>
+
+      <!-- Подпись словами, а не значком: знака «ℹ» нет в Inter, подхватывается шрифт эмодзи,
+           и вместо буквы получается синяя плашка. -->
+      <Button Grid.Column="1" Content="О программе" Padding="12,5"
+              Classes.updateAvailable="{Binding IsUpdateAvailable}"
+              ToolTip.Tip="Сведения о программе и проверка обновлений">
+        <Button.Flyout>
+          <Flyout Placement="BottomEdgeAlignedRight">
+            <StackPanel Width="320" Spacing="2">
+              <TextBlock Text="PDF Compress" FontWeight="Bold" FontSize="16" />
+              <TextBlock Text="пакетное сжатие PDF без внешних утилит" Classes="hint" />
+              <TextBlock Text="{Binding AppVersionText}" Classes="hint" Margin="0,4,0,0" />
+              <TextBlock Text="Автор: Inbasko" Margin="0,6,0,0" />
+              <TextBlock Text="github.com/OlBaskov-rec/pdfCompress" Classes="hint" />
+
+              <Border Classes="rule" Margin="0,10" />
+
+              <!-- Ручная проверка — пока обновление не найдено -->
+              <Button Content="Проверить обновление"
+                      IsVisible="{Binding ShowCheckButton}"
+                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                      Command="{Binding CheckUpdatesManualCommand}" />
+              <!-- Обновление уже найдено фоновой проверкой -->
+              <Button Content="{Binding UpdateFoundButtonText}"
+                      IsVisible="{Binding ShowRevealButton}"
+                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                      Background="#3A8A3F" Foreground="White" FontWeight="Bold"
+                      Command="{Binding RevealUpdateCommand}" />
+
+              <TextBlock Text="{Binding UpdateCheckStatus}" Classes="hint" Margin="0,8,0,0"
+                         IsVisible="{Binding UpdateCheckStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+          </Flyout>
+        </Button.Flyout>
+      </Button>
+    </Grid>
 
     <!-- ── 1. Папка с исходными файлами ─────────────────────────────────────────────── -->
-    <StackPanel Grid.Row="0" Spacing="6">
+    <StackPanel Grid.Row="1" Spacing="6">
       <TextBlock Classes="section" Text="1. Папка с PDF-файлами" />
       <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
         <TextBox Grid.Column="0"
@@ -64,18 +150,17 @@
       <CheckBox Content="Искать и во вложенных папках" IsChecked="{Binding IncludeSubfolders}" />
     </StackPanel>
 
-    <!-- ── 2. Список найденных файлов ───────────────────────────────────────────────── -->
-    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+    <!-- ── Список найденных файлов ──────────────────────────────────────────────────── -->
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
       <TextBlock Grid.Column="0" Text="{Binding FilesSummary}" VerticalAlignment="Center" />
       <Button Grid.Column="1" Content="Отметить все" Command="{Binding SelectAllCommand}" />
       <Button Grid.Column="2" Content="Снять отметки" Command="{Binding ClearSelectionCommand}" />
     </Grid>
 
-    <Border Grid.Row="2"
+    <Border Grid.Row="3"
             BorderThickness="1"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-            CornerRadius="6"
-            MinHeight="120">
+            CornerRadius="6">
       <ListBox ItemsSource="{Binding Files}" Background="Transparent" SelectionMode="Single">
         <ListBox.ItemTemplate>
           <DataTemplate x:DataType="vm:PdfFileItem">
@@ -92,8 +177,15 @@
       </ListBox>
     </Border>
 
-    <!-- ── 3. Способ сжатия: активен ровно один из двух блоков ──────────────────────── -->
-    <StackPanel Grid.Row="3" Spacing="8">
+    <!-- ── Переход к разделу 2 ──────────────────────────────────────────────────────── -->
+    <Grid Grid.Row="4" ColumnDefinitions="*,Auto,*" Margin="0,6,0,4">
+      <Border Grid.Column="0" Classes="rule" />
+      <TextBlock Grid.Column="1" Classes="flowArrow" Text="▼" />
+      <Border Grid.Column="2" Classes="rule" />
+    </Grid>
+
+    <!-- ── 2. Способ сжатия: активен ровно один из двух блоков ──────────────────────── -->
+    <StackPanel Grid.Row="5" Spacing="8">
       <TextBlock Classes="section" Text="2. Как сжимать (доступен один из двух способов)" />
       <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
 
@@ -142,12 +234,19 @@
       </Grid>
     </StackPanel>
 
-    <!-- ── 4. Куда сохранять и запуск ───────────────────────────────────────────────── -->
-    <StackPanel Grid.Row="4" Spacing="6">
+    <!-- ── Переход к разделу 3 ──────────────────────────────────────────────────────── -->
+    <Grid Grid.Row="6" ColumnDefinitions="*,Auto,*" Margin="0,6,0,4">
+      <Border Grid.Column="0" Classes="rule" />
+      <TextBlock Grid.Column="1" Classes="flowArrow" Text="▼" />
+      <Border Grid.Column="2" Classes="rule" />
+    </Grid>
+
+    <!-- ── 3. Куда сохранять и запуск ───────────────────────────────────────────────── -->
+    <StackPanel Grid.Row="7" Spacing="6">
       <TextBlock Classes="section" Text="3. Папка для результатов" />
       <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
         <TextBox Grid.Column="0" Text="{Binding OutputFolder}"
-                 PlaceholderText="Подпапка «compressed» рядом с исходными файлами"
+                 PlaceholderText="Вложенная папка рядом с исходными файлами"
                  IsReadOnly="True" />
         <Button Grid.Column="1" Content="Обзор…" Command="{Binding BrowseOutputCommand}" />
         <Button Grid.Column="2" Classes="primary" Content="▶ Обработать"
@@ -162,8 +261,8 @@
       </Grid>
     </StackPanel>
 
-    <!-- ── 5. Ход выполнения ────────────────────────────────────────────────────────── -->
-    <StackPanel Grid.Row="5" Spacing="6">
+    <!-- ── Ход выполнения ───────────────────────────────────────────────────────────── -->
+    <StackPanel Grid.Row="8" Spacing="4">
       <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" Height="6"
                    IsVisible="{Binding IsBusy}" />
       <TextBlock Text="{Binding StatusText}" Classes="hint" />
@@ -172,12 +271,35 @@
                  IsVisible="{Binding ErrorText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
     </StackPanel>
 
-    <!-- ── 6. Результаты ────────────────────────────────────────────────────────────── -->
-    <Border Grid.Row="6"
+    <!-- ── Баннер готового обновления ───────────────────────────────────────────────── -->
+    <Border Grid.Row="9" Background="#E7F3E8" BorderBrush="#3A8A3F" BorderThickness="1"
+            CornerRadius="6" Padding="10,8" Margin="0,4,0,0"
+            IsVisible="{Binding IsUpdateReady}">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+          <Button Content="Отложить" Command="{Binding PostponeUpdateCommand}"
+                  ToolTip.Tip="Убрать баннер; обновиться можно позже через значок «ℹ»" />
+          <Button Content="⟳ Обновить и перезапустить"
+                  Command="{Binding ApplyUpdateCommand}"
+                  Background="#3A8A3F" Foreground="White" FontWeight="Bold" />
+        </StackPanel>
+        <TextBlock Text="{Binding UpdateText}" VerticalAlignment="Center"
+                   Foreground="#1E5E22" FontWeight="SemiBold" TextWrapping="Wrap" />
+      </DockPanel>
+    </Border>
+
+    <!-- ── Переход к результатам ────────────────────────────────────────────────────── -->
+    <Grid Grid.Row="10" ColumnDefinitions="*,Auto,*" Margin="0,6,0,4">
+      <Border Grid.Column="0" Classes="rule" />
+      <TextBlock Grid.Column="1" Classes="flowArrow" Text="▼" />
+      <Border Grid.Column="2" Classes="rule" />
+    </Grid>
+
+    <!-- ── Результаты ───────────────────────────────────────────────────────────────── -->
+    <Border Grid.Row="11"
             BorderThickness="1"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-            CornerRadius="6"
-            MinHeight="110">
+            CornerRadius="6">
       <ScrollViewer>
         <ItemsControl ItemsSource="{Binding Results}" Margin="10">
           <ItemsControl.ItemTemplate>
@@ -195,7 +317,7 @@
       </ScrollViewer>
     </Border>
 
-    <TextBlock Grid.Row="7" Text="{Binding ResultsSummary}" FontWeight="SemiBold"
+    <TextBlock Grid.Row="12" Text="{Binding ResultsSummary}" FontWeight="SemiBold" Margin="0,4,0,0"
                IsVisible="{Binding ResultsSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
   </Grid>
 </Window>

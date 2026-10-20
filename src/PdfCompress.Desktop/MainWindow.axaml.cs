@@ -29,6 +29,15 @@ public partial class MainWindow : Window
 
     private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+
+        // Проверка обновлений — только после того, как окно показалось: никаких задержек
+        // на старте, а сетевые ошибки уходят в журнал и работе не мешают.
+        _ = _viewModel.CheckForUpdatesAsync();
+    }
+
     protected override void OnUnloaded(RoutedEventArgs e)
     {
         // Размер окна и настройки сохраняем при закрытии: в процессе работы это лишние записи.

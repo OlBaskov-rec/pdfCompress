@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -17,15 +18,23 @@ namespace PdfCompress.Desktop.ViewModels;
 /// </summary>
 public partial class MainViewModel : ObservableObject
 {
-    /// <summary>Имя подпапки, куда по умолчанию складываются результаты.</summary>
-    private const string DefaultOutputFolderName = "compressed";
+    /// <summary>
+    /// Имя вложенной папки, куда по умолчанию складываются результаты. Название на языке
+    /// интерфейса системы: русскоязычному пользователю «сжатые» понятнее, чем «compressed»,
+    /// а искать папку он будет глазами в общем списке.
+    /// </summary>
+    private static string DefaultOutputFolderName =>
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ru" ? "сжатые" : "compressed";
 
     private readonly IFolderPicker _folderPicker;
     private readonly PdfFileScanner _scanner = new();
     private readonly PdfCompressionService _compressor = new();
+    private readonly UpdateService _updateService = new();
 
     /// <summary>
     /// Пользователь сам выбрал папку результатов — тогда при смене исходной папки её не трогаем.
+    /// Флаг хранится в настройках: раньше он выводился из «в настройках есть папка вывода», и
+    /// после первого же запуска предложение по умолчанию переставало работать навсегда.
     /// </summary>
     private bool _outputFolderChosenByUser;
 
@@ -44,14 +53,20 @@ public partial class MainViewModel : ObservableObject
         maxSizeValue = settings.MaxSizeValue > 0 ? (decimal)settings.MaxSizeValue : 5m;
         selectedUnit = SizeUnitOption.All.FirstOrDefault(u => u.Unit == settings.MaxSizeUnit) ?? SizeUnitOption.All[2];
         outputFolder = settings.OutputFolder;
-        _outputFolderChosenByUser = !string.IsNullOrWhiteSpace(settings.OutputFolder);
+        _outputFolderChosenByUser = settings.OutputFolderIsCustom;
 
         if (!string.IsNullOrWhiteSpace(settings.SourceFolder) && Directory.Exists(settings.SourceFolder))
         {
             sourceFolder = settings.SourceFolder;
+            if (!_outputFolderChosenByUser)
+                outputFolder = DefaultOutputFolderFor(sourceFolder);
             Rescan();
         }
     }
+
+    /// <summary>Папка результатов по умолчанию — вложенная в исходную.</summary>
+    private static string DefaultOutputFolderFor(string sourceFolder) =>
+        Path.Combine(sourceFolder, DefaultOutputFolderName);
 
     // ── Источник ───────────────────────────────────────────────────────────────────────────
 
@@ -181,7 +196,7 @@ public partial class MainViewModel : ObservableObject
 
         SourceFolder = folder;
         if (!_outputFolderChosenByUser)
-            OutputFolder = Path.Combine(folder, DefaultOutputFolderName);
+            OutputFolder = DefaultOutputFolderFor(folder);
 
         Rescan();
     }
@@ -421,5 +436,6 @@ public partial class MainViewModel : ObservableObject
         Level = (int)Level,
         MaxSizeValue = (double)MaxSizeValue,
         MaxSizeUnit = SelectedUnit.Unit,
+        OutputFolderIsCustom = _outputFolderChosenByUser,
     });
 }

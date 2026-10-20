@@ -12,6 +12,12 @@ public sealed class AppSettings
 {
     public string? SourceFolder { get; set; }
     public string? OutputFolder { get; set; }
+
+    /// <summary>
+    /// Папку результатов выбрал сам пользователь. Если нет — при смене исходной папки
+    /// предлагается вложенная папка по умолчанию.
+    /// </summary>
+    public bool OutputFolderIsCustom { get; set; }
     public bool IncludeSubfolders { get; set; }
     public bool UseLevelMode { get; set; } = true;
     public int Level { get; set; } = (int)CompressionLevel.Medium;
