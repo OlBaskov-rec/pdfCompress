@@ -9,8 +9,24 @@ public enum CompressionMode
     /// <summary>Фиксированная степень сжатия (1..5).</summary>
     Level,
 
-    /// <summary>Подбор параметров под заданный максимальный размер файла.</summary>
+    /// <summary>Подбор параметров под заданный максимальный размер.</summary>
     TargetSize,
+}
+
+/// <summary>
+/// К чему именно относится предельный размер. Нужен только при
+/// <see cref="CompressionMode.TargetSize"/>.
+/// </summary>
+public enum TargetScope
+{
+    /// <summary>К каждому файлу по отдельности.</summary>
+    File,
+
+    /// <summary>Ко всей папке-источнику целиком, со всем её содержимым.</summary>
+    Folder,
+
+    /// <summary>К каждой подпапке первого уровня по отдельности.</summary>
+    Subfolder,
 }
 
 /// <summary>Что именно требуется сделать с файлами — задание на обработку.</summary>
@@ -24,11 +40,18 @@ public sealed record CompressionRequest
     /// <summary>Предельный размер результата в байтах; только при <see cref="CompressionMode.TargetSize"/>.</summary>
     public long TargetBytes { get; init; }
 
+    /// <summary>К чему относится предел: к файлу, к папке целиком или к каждой подпапке.</summary>
+    public TargetScope Scope { get; init; } = TargetScope.File;
+
     /// <summary>Задание для фиксированной степени сжатия.</summary>
     public static CompressionRequest ForLevel(CompressionLevel level) =>
         new() { Mode = CompressionMode.Level, Level = level };
 
-    /// <summary>Задание для подбора под размер.</summary>
+    /// <summary>Задание для подбора под размер каждого файла.</summary>
     public static CompressionRequest ForTargetSize(long bytes) =>
-        new() { Mode = CompressionMode.TargetSize, TargetBytes = bytes };
+        new() { Mode = CompressionMode.TargetSize, TargetBytes = bytes, Scope = TargetScope.File };
+
+    /// <summary>Задание для подбора под размер группы файлов (папки или подпапки).</summary>
+    public static CompressionRequest ForTargetSize(long bytes, TargetScope scope) =>
+        new() { Mode = CompressionMode.TargetSize, TargetBytes = bytes, Scope = scope };
 }

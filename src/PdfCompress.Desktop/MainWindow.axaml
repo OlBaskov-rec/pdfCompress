@@ -7,8 +7,8 @@
         x:Class="PdfCompress.Desktop.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="PDF Compress"
-        Width="920" Height="860"
-        MinWidth="760" MinHeight="700"
+        Width="1080" Height="880"
+        MinWidth="900" MinHeight="700"
         WindowStartupLocation="CenterScreen">
 
   <Window.Styles>
@@ -60,7 +60,12 @@
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
-    <!-- Значок «О программе» зеленеет и мигает, когда найдено обновление -->
+    <!-- Строка-заголовок группы в результатах -->
+    <Style Selector="TextBlock.groupTitle">
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+
+    <!-- Кнопка «О программе» зеленеет и мигает, когда найдено обновление -->
     <Style Selector="Button.updateAvailable /template/ ContentPresenter">
       <Setter Property="Background" Value="#3A8A3F" />
     </Style>
@@ -79,17 +84,7 @@
     </Style>
   </Window.Styles>
 
-  <!--
-    Списки (строки со звёздочкой) намеренно БЕЗ MinHeight: при нехватке высоты они сжимаются
-    вплоть до нуля, и разделы никогда не наезжают друг на друга. Раньше у них был MinHeight,
-    и при сжатии окна по вертикали сумма фиксированных строк превышала доступную высоту —
-    Grid не обрезает содержимое, а накладывает строки одну на другую.
-
-    До нуля списки на практике не доходят: MinHeight окна подобран так, чтобы при самом
-    маленьком размере оба списка оставались видимыми хотя бы на пару строк.
-  -->
-  <Grid Margin="16" RowSpacing="6"
-        RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto">
+  <Grid Margin="16" RowDefinitions="Auto,*" RowSpacing="8">
 
     <!-- ── Шапка: имя программы и «О программе» ─────────────────────────────────────── -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
@@ -114,12 +109,10 @@
 
               <Border Classes="rule" Margin="0,10" />
 
-              <!-- Ручная проверка — пока обновление не найдено -->
               <Button Content="Проверить обновление"
                       IsVisible="{Binding ShowCheckButton}"
                       HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                       Command="{Binding CheckUpdatesManualCommand}" />
-              <!-- Обновление уже найдено фоновой проверкой -->
               <Button Content="{Binding UpdateFoundButtonText}"
                       IsVisible="{Binding ShowRevealButton}"
                       HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
@@ -134,190 +127,243 @@
       </Button>
     </Grid>
 
-    <!-- ── 1. Папка с исходными файлами ─────────────────────────────────────────────── -->
-    <StackPanel Grid.Row="1" Spacing="6">
-      <TextBlock Classes="section" Text="1. Папка с PDF-файлами" />
-      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-        <TextBox Grid.Column="0"
-                 Text="{Binding SourceFolder}"
-                 PlaceholderText="Путь к папке — выберите кнопкой «Обзор…»"
-                 IsReadOnly="True" />
-        <Button Grid.Column="1" Content="Обзор…" Command="{Binding BrowseSourceCommand}" />
-        <Button Grid.Column="2" Content="⟳"
-                ToolTip.Tip="Перечитать папку"
-                Command="{Binding RefreshCommand}" />
-      </Grid>
-      <CheckBox Content="Искать и во вложенных папках" IsChecked="{Binding IncludeSubfolders}" />
-    </StackPanel>
+    <!-- ── Панель папок слева + основная часть справа ──────────────────────────────── -->
+    <Grid Grid.Row="1" ColumnDefinitions="260,8,*">
 
-    <!-- ── Список найденных файлов ──────────────────────────────────────────────────── -->
-    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-      <TextBlock Grid.Column="0" Text="{Binding FilesSummary}" VerticalAlignment="Center" />
-      <Button Grid.Column="1" Content="Отметить все" Command="{Binding SelectAllCommand}" />
-      <Button Grid.Column="2" Content="Снять отметки" Command="{Binding ClearSelectionCommand}" />
-    </Grid>
+      <!-- ── 1. Папки-источники ─────────────────────────────────────────────────────── -->
+      <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="6">
+        <TextBlock Grid.Row="0" Classes="section" Text="1. Папки с PDF-файлами" />
 
-    <Border Grid.Row="3"
-            BorderThickness="1"
-            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-            CornerRadius="6">
-      <ListBox ItemsSource="{Binding Files}" Background="Transparent" SelectionMode="Single">
-        <ListBox.ItemTemplate>
-          <DataTemplate x:DataType="vm:PdfFileItem">
-            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-              <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" />
-              <TextBlock Grid.Column="1" Text="{Binding FileName}"
-                         VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                         ToolTip.Tip="{Binding FullPath}" />
-              <TextBlock Grid.Column="2" Text="{Binding SizeText}"
-                         VerticalAlignment="Center" Opacity="0.7" />
-            </Grid>
-          </DataTemplate>
-        </ListBox.ItemTemplate>
-      </ListBox>
-    </Border>
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="6">
+          <Button Grid.Column="0" Content="+ Добавить папку"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  Command="{Binding AddFolderCommand}" />
+          <Button Grid.Column="1" Content="−"
+                  ToolTip.Tip="Убрать выбранную папку из списка"
+                  Command="{Binding RemoveFolderCommand}" />
+        </Grid>
 
-    <!-- ── Переход к разделу 2 ──────────────────────────────────────────────────────── -->
-    <Grid Grid.Row="4" ColumnDefinitions="*,Auto,*" Margin="0,6,0,4">
-      <Border Grid.Column="0" Classes="rule" />
-      <TextBlock Grid.Column="1" Classes="flowArrow" Text="▼" />
-      <Border Grid.Column="2" Classes="rule" />
-    </Grid>
-
-    <!-- ── 2. Способ сжатия: активен ровно один из двух блоков ──────────────────────── -->
-    <StackPanel Grid.Row="5" Spacing="8">
-      <TextBlock Classes="section" Text="2. Как сжимать (доступен один из двух способов)" />
-      <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-
-        <!-- Степень сжатия -->
-        <Border Grid.Column="0" Classes="mode" Classes.active="{Binding UseLevelMode}"
-                IsEnabled="{Binding UseLevelMode}">
-          <StackPanel Spacing="8">
-            <Slider Minimum="1" Maximum="5"
-                    TickFrequency="1" IsSnapToTickEnabled="True"
-                    TickPlacement="BottomRight"
-                    Value="{Binding LevelValue}" />
-            <TextBlock Text="{Binding LevelName}" FontSize="16" FontWeight="SemiBold" />
-            <TextBlock Classes="hint" Text="{Binding LevelDetails}" />
-          </StackPanel>
+        <Border Grid.Row="2"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                CornerRadius="6">
+          <ListBox ItemsSource="{Binding Folders}" Background="Transparent"
+                   SelectionMode="Single"
+                   SelectedItem="{Binding SelectedFolder}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:SourceFolderItem">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                  <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="Обрабатывать файлы этой папки" />
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding Path}" />
+                    <TextBlock Text="{Binding Summary}" Classes="hint" />
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
         </Border>
 
-        <!-- Предельный размер файла -->
-        <Border Grid.Column="1" Classes="mode" Classes.active="{Binding UseTargetSizeMode}"
-                IsEnabled="{Binding UseTargetSizeMode}">
-          <StackPanel Spacing="8">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-              <NumericUpDown Grid.Column="0"
-                             Value="{Binding MaxSizeValue}"
-                             Minimum="0" Maximum="1000000"
-                             Increment="1" FormatString="0.###"
-                             PlaceholderText="Размер" />
-              <ComboBox Grid.Column="1" MinWidth="90"
-                        ItemsSource="{Binding Units}"
-                        SelectedItem="{Binding SelectedUnit}" />
-            </Grid>
-            <TextBlock Classes="hint" Text="{Binding TargetSizeHint}" />
-            <TextBlock Classes="hint"
-                       Text="Степень подбирается сама — самая щадящая из тех, что укладываются в предел." />
-          </StackPanel>
-        </Border>
-      </Grid>
-
-      <!-- Переключатель способа: подписи стоят под блоками, чтобы связь была очевидна -->
-      <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-        <RadioButton Grid.Column="0" GroupName="mode"
-                     Content="Степень сжатия"
-                     IsChecked="{Binding UseLevelMode}" />
-        <RadioButton Grid.Column="1" GroupName="mode"
-                     Content="Максимальный размер файла"
-                     IsChecked="{Binding UseTargetSizeMode}" />
-      </Grid>
-    </StackPanel>
-
-    <!-- ── Переход к разделу 3 ──────────────────────────────────────────────────────── -->
-    <Grid Grid.Row="6" ColumnDefinitions="*,Auto,*" Margin="0,6,0,4">
-      <Border Grid.Column="0" Classes="rule" />
-      <TextBlock Grid.Column="1" Classes="flowArrow" Text="▼" />
-      <Border Grid.Column="2" Classes="rule" />
-    </Grid>
-
-    <!-- ── 3. Куда сохранять и запуск ───────────────────────────────────────────────── -->
-    <StackPanel Grid.Row="7" Spacing="6">
-      <TextBlock Classes="section" Text="3. Папка для результатов" />
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
-        <TextBox Grid.Column="0" Text="{Binding OutputFolder}"
-                 PlaceholderText="Вложенная папка рядом с исходными файлами"
-                 IsReadOnly="True" />
-        <Button Grid.Column="1" Content="Обзор…" Command="{Binding BrowseOutputCommand}" />
-        <Button Grid.Column="2" Classes="primary" Content="▶ Обработать"
-                IsVisible="{Binding IsIdle}"
-                Command="{Binding ProcessCommand}" />
-        <Button Grid.Column="2" Classes="primary" Content="■ Отмена"
-                IsVisible="{Binding IsBusy}"
-                Command="{Binding CancelCommand}" />
-        <Button Grid.Column="3" Content="📂"
-                ToolTip.Tip="Открыть папку результатов"
-                Command="{Binding OpenOutputFolderCommand}" />
-      </Grid>
-    </StackPanel>
-
-    <!-- ── Ход выполнения ───────────────────────────────────────────────────────────── -->
-    <StackPanel Grid.Row="8" Spacing="4">
-      <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" Height="6"
-                   IsVisible="{Binding IsBusy}" />
-      <TextBlock Text="{Binding StatusText}" Classes="hint" />
-      <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap"
-                 Foreground="{DynamicResource SystemErrorTextColor}"
-                 IsVisible="{Binding ErrorText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-    </StackPanel>
-
-    <!-- ── Баннер готового обновления ───────────────────────────────────────────────── -->
-    <Border Grid.Row="9" Background="#E7F3E8" BorderBrush="#3A8A3F" BorderThickness="1"
-            CornerRadius="6" Padding="10,8" Margin="0,4,0,0"
-            IsVisible="{Binding IsUpdateReady}">
-      <DockPanel>
-        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
-          <Button Content="Отложить" Command="{Binding PostponeUpdateCommand}"
-                  ToolTip.Tip="Убрать баннер; обновиться можно позже через значок «ℹ»" />
-          <Button Content="⟳ Обновить и перезапустить"
-                  Command="{Binding ApplyUpdateCommand}"
-                  Background="#3A8A3F" Foreground="White" FontWeight="Bold" />
+        <StackPanel Grid.Row="3" Spacing="6">
+          <CheckBox Content="Искать и во вложенных папках" IsChecked="{Binding IncludeSubfolders}" />
+          <Button Content="⟳ Перечитать папки"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  Command="{Binding RefreshCommand}" />
         </StackPanel>
-        <TextBlock Text="{Binding UpdateText}" VerticalAlignment="Center"
-                   Foreground="#1E5E22" FontWeight="SemiBold" TextWrapping="Wrap" />
-      </DockPanel>
-    </Border>
+      </Grid>
 
-    <!-- ── Переход к результатам ────────────────────────────────────────────────────── -->
-    <Grid Grid.Row="10" ColumnDefinitions="*,Auto,*" Margin="0,6,0,4">
-      <Border Grid.Column="0" Classes="rule" />
-      <TextBlock Grid.Column="1" Classes="flowArrow" Text="▼" />
-      <Border Grid.Column="2" Classes="rule" />
+      <GridSplitter Grid.Column="1" Background="Transparent" />
+
+      <!-- ── Основная часть ─────────────────────────────────────────────────────────── -->
+      <Grid Grid.Column="2" RowSpacing="6"
+            RowDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto">
+
+        <!-- Найденные файлы -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+          <TextBlock Grid.Column="0" Text="{Binding FilesSummary}" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Content="Отметить все" Command="{Binding SelectAllCommand}" />
+          <Button Grid.Column="2" Content="Снять отметки" Command="{Binding ClearSelectionCommand}" />
+        </Grid>
+
+        <Border Grid.Row="1"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                CornerRadius="6">
+          <ListBox ItemsSource="{Binding Files}" Background="Transparent" SelectionMode="Single">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:PdfFileItem">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                  <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" />
+                  <TextBlock Grid.Column="1" Text="{Binding DisplayName}"
+                             VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                             ToolTip.Tip="{Binding FullPath}" />
+                  <TextBlock Grid.Column="2" Text="{Binding SizeText}"
+                             VerticalAlignment="Center" Opacity="0.7" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Border>
+
+        <!-- Переход к разделу 2 -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,*" Margin="0,6,0,4">
+          <Border Grid.Column="0" Classes="rule" />
+          <TextBlock Grid.Column="1" Classes="flowArrow" Text="▼" />
+          <Border Grid.Column="2" Classes="rule" />
+        </Grid>
+
+        <!-- ── 2. Способ сжатия: активен ровно один из двух блоков ──────────────────── -->
+        <StackPanel Grid.Row="3" Spacing="8">
+          <TextBlock Classes="section" Text="2. Как сжимать (доступен один из двух способов)" />
+          <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+
+            <!-- Степень сжатия -->
+            <Border Grid.Column="0" Classes="mode" Classes.active="{Binding UseLevelMode}"
+                    IsEnabled="{Binding UseLevelMode}">
+              <StackPanel Spacing="8">
+                <Slider Minimum="1" Maximum="5"
+                        TickFrequency="1" IsSnapToTickEnabled="True"
+                        TickPlacement="BottomRight"
+                        Value="{Binding LevelValue}" />
+                <TextBlock Text="{Binding LevelName}" FontSize="16" FontWeight="SemiBold" />
+                <TextBlock Classes="hint" Text="{Binding LevelDetails}" />
+              </StackPanel>
+            </Border>
+
+            <!-- Предельный размер -->
+            <Border Grid.Column="1" Classes="mode" Classes.active="{Binding UseTargetSizeMode}"
+                    IsEnabled="{Binding UseTargetSizeMode}">
+              <StackPanel Spacing="6">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                  <NumericUpDown Grid.Column="0"
+                                 Value="{Binding MaxSizeValue}"
+                                 Minimum="0" Maximum="1000000"
+                                 Increment="1" FormatString="0.###"
+                                 PlaceholderText="Размер" />
+                  <ComboBox Grid.Column="1" MinWidth="90"
+                            ItemsSource="{Binding Units}"
+                            SelectedItem="{Binding SelectedUnit}" />
+                </Grid>
+
+                <!-- Область действия предела: оба флажка одновременно включить нельзя,
+                     снятые оба означают «предел на каждый файл». -->
+                <CheckBox Content="предел на всю папку целиком"
+                          IsChecked="{Binding LimitPerFolder}"
+                          ToolTip.Tip="Отслеживать максимальный размер папки: в предел должна уложиться сумма всех её файлов, включая вложенные папки" />
+                <CheckBox Content="предел на каждую подпапку"
+                          IsChecked="{Binding LimitPerSubfolder}"
+                          ToolTip.Tip="Следить за максимальным размером каждой подпапки по отдельности: каждая подпапка первого уровня укладывается в предел сама по себе" />
+
+                <TextBlock Classes="hint" Text="{Binding TargetSizeHint}" />
+                <TextBlock Classes="hint" Text="{Binding ScopeHint}" />
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <!-- Переключатель способа: подписи стоят под блоками, чтобы связь была очевидна -->
+          <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+            <RadioButton Grid.Column="0" GroupName="mode"
+                         Content="Степень сжатия"
+                         IsChecked="{Binding UseLevelMode}" />
+            <RadioButton Grid.Column="1" GroupName="mode"
+                         Content="Максимальный размер"
+                         IsChecked="{Binding UseTargetSizeMode}" />
+          </Grid>
+        </StackPanel>
+
+        <!-- Переход к разделу 3 -->
+        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,*" Margin="0,6,0,4">
+          <Border Grid.Column="0" Classes="rule" />
+          <TextBlock Grid.Column="1" Classes="flowArrow" Text="▼" />
+          <Border Grid.Column="2" Classes="rule" />
+        </Grid>
+
+        <!-- ── 3. Куда сохранять и запуск ───────────────────────────────────────────── -->
+        <StackPanel Grid.Row="5" Spacing="6">
+          <TextBlock Classes="section" Text="3. Папка для результатов" />
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+            <TextBox Grid.Column="0" Text="{Binding OutputFolderDisplay}"
+                     IsReadOnly="True" />
+            <Button Grid.Column="1" Content="Обзор…" Command="{Binding BrowseOutputCommand}" />
+            <Button Grid.Column="2" Content="↺"
+                    ToolTip.Tip="Вернуть раскладку по умолчанию — рядом с каждой папкой-источником"
+                    Command="{Binding UseDefaultOutputCommand}" />
+            <Button Grid.Column="3" Classes="primary" Content="▶ Обработать"
+                    IsVisible="{Binding IsIdle}"
+                    Command="{Binding ProcessCommand}" />
+            <Button Grid.Column="3" Classes="primary" Content="■ Отмена"
+                    IsVisible="{Binding IsBusy}"
+                    Command="{Binding CancelCommand}" />
+            <Button Grid.Column="4" Content="📂"
+                    ToolTip.Tip="Открыть папку результатов"
+                    Command="{Binding OpenOutputFolderCommand}" />
+          </Grid>
+        </StackPanel>
+
+        <!-- Ход выполнения -->
+        <StackPanel Grid.Row="6" Spacing="4">
+          <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" Height="6"
+                       IsVisible="{Binding IsBusy}" />
+          <TextBlock Text="{Binding StatusText}" Classes="hint" />
+          <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap"
+                     Foreground="{DynamicResource SystemErrorTextColor}"
+                     IsVisible="{Binding ErrorText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </StackPanel>
+
+        <!-- Баннер готового обновления -->
+        <Border Grid.Row="7" Background="#E7F3E8" BorderBrush="#3A8A3F" BorderThickness="1"
+                CornerRadius="6" Padding="10,8" Margin="0,4,0,0"
+                IsVisible="{Binding IsUpdateReady}">
+          <DockPanel>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+              <Button Content="Отложить" Command="{Binding PostponeUpdateCommand}"
+                      ToolTip.Tip="Убрать баннер; обновиться можно позже через «О программе»" />
+              <Button Content="⟳ Обновить и перезапустить"
+                      Command="{Binding ApplyUpdateCommand}"
+                      Background="#3A8A3F" Foreground="White" FontWeight="Bold" />
+            </StackPanel>
+            <TextBlock Text="{Binding UpdateText}" VerticalAlignment="Center"
+                       Foreground="#1E5E22" FontWeight="SemiBold" TextWrapping="Wrap" />
+          </DockPanel>
+        </Border>
+
+        <!-- Переход к результатам -->
+        <Grid Grid.Row="8" ColumnDefinitions="*,Auto,*" Margin="0,6,0,4">
+          <Border Grid.Column="0" Classes="rule" />
+          <TextBlock Grid.Column="1" Classes="flowArrow" Text="▼" />
+          <Border Grid.Column="2" Classes="rule" />
+        </Grid>
+
+        <!-- Результаты -->
+        <Border Grid.Row="9"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                CornerRadius="6">
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Results}" Margin="10">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ResultRow">
+                  <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10" Margin="0,2">
+                    <TextBlock Grid.Column="0" Text="{Binding Icon}" FontWeight="Bold" Width="16" />
+                    <TextBlock Grid.Column="1" Text="{Binding FileName}" TextTrimming="CharacterEllipsis"
+                               MaxWidth="320"
+                               Classes.groupTitle="{Binding IsGroupHeader}" />
+                    <TextBlock Grid.Column="2" Text="{Binding Detail}" Opacity="0.85"
+                               TextWrapping="Wrap"
+                               Classes.groupTitle="{Binding IsGroupHeader}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+
+        <TextBlock Grid.Row="10" Text="{Binding ResultsSummary}" FontWeight="SemiBold" Margin="0,4,0,0"
+                   IsVisible="{Binding ResultsSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      </Grid>
     </Grid>
-
-    <!-- ── Результаты ───────────────────────────────────────────────────────────────── -->
-    <Border Grid.Row="11"
-            BorderThickness="1"
-            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-            CornerRadius="6">
-      <ScrollViewer>
-        <ItemsControl ItemsSource="{Binding Results}" Margin="10">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:ResultRow">
-              <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10" Margin="0,2">
-                <TextBlock Grid.Column="0" Text="{Binding Icon}" FontWeight="Bold" Width="16" />
-                <TextBlock Grid.Column="1" Text="{Binding FileName}" TextTrimming="CharacterEllipsis"
-                           MaxWidth="320" />
-                <TextBlock Grid.Column="2" Text="{Binding Detail}" Opacity="0.85"
-                           TextWrapping="Wrap" />
-              </Grid>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </ScrollViewer>
-    </Border>
-
-    <TextBlock Grid.Row="12" Text="{Binding ResultsSummary}" FontWeight="SemiBold" Margin="0,4,0,0"
-               IsVisible="{Binding ResultsSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
   </Grid>
 </Window>

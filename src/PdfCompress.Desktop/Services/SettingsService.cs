@@ -10,8 +10,19 @@ namespace PdfCompress.Desktop.Services;
 /// </summary>
 public sealed class AppSettings
 {
+    /// <summary>Папки-источники. Список, а не одна папка, начиная с версии 0.2.</summary>
+    public List<string>? SourceFolders { get; set; }
+
+    /// <summary>
+    /// Единственная папка-источник из настроек прежних версий. Только для чтения при переходе —
+    /// новые настройки пишутся в <see cref="SourceFolders"/>.
+    /// </summary>
     public string? SourceFolder { get; set; }
+
     public string? OutputFolder { get; set; }
+
+    /// <summary>К чему применяется предельный размер: к файлу, к папке или к каждой подпапке.</summary>
+    public TargetScope Scope { get; set; } = TargetScope.File;
 
     /// <summary>
     /// Папку результатов выбрал сам пользователь. Если нет — при смене исходной папки

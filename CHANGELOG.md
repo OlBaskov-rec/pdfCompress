@@ -4,6 +4,78 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект придерживается [семантического версионирования](https://semver.org/lang/ru/).
 
+## [0.2.0] — 2026-10-20
+
+**EN — Added: several source folders at once, and a size limit that applies to a folder rather
+than to each file.**
+
+A panel on the left holds the list of source folders: add as many as needed, each with its own
+checkbox for whether to process it and a summary of how many PDFs it holds and how much they
+weigh. The file list shows paths relative to each source folder, and results keep the subfolder
+structure — previously files with the same name in different subfolders overwrote each other in
+one flat output folder.
+
+Next to the maximum size there are now two mutually exclusive checkboxes (only one can be on):
+**limit on the whole folder** — the sum of everything in it, nested folders included, must fit;
+and **limit on each subfolder** — every first-level subfolder fits on its own. With neither one
+on, the limit applies per file as before.
+
+For a folder a single compression level is chosen for the whole group, not per file. That is
+both fairer on quality — every document in the batch looks the same instead of one being crisp
+and its neighbour mushy — and more likely to succeed, because slack in one file works for
+another, whereas handing each file its own quota lets one stubborn scan fail the entire folder.
+Search passes measure sizes only and discard the compressed bytes, so a folder of any size fits
+in memory; a pass whose running total already exceeds the limit is abandoned on the spot.
+
+By default results go into a subfolder of each source folder; files produced by a previous run
+are excluded from scanning, so a second run with "search subfolders" no longer re-compresses its
+own output.
+
+---
+
+**RU — Добавлено: несколько папок-источников сразу и предел размера на папку, а не на файл.**
+
+Слева появилась панель со списком папок: добавляйте сколько нужно, у каждой свой флажок
+«обрабатывать» и сводка — сколько в ней PDF и сколько они весят. В списке файлов видны пути
+относительно своей папки-источника, а результаты раскладываются с сохранением структуры
+подпапок — раньше одноимённые файлы из разных подпапок затирали друг друга в одной общей
+выходной папке.
+
+Рядом с максимальным размером — два взаимоисключающих флажка (активен может быть только один):
+**предел на всю папку целиком** — в него должна уложиться сумма всего её содержимого, включая
+вложенные папки; и **предел на каждую подпапку** — каждая подпапка первого уровня укладывается
+сама по себе. Если не включён ни один, предел применяется к каждому файлу, как раньше.
+
+Для папки подбирается одна степень сжатия на всю группу, а не своя на каждый файл. Так честнее
+по качеству (все документы пачки выглядят одинаково, а не «этот чёткий, а соседний мыльный») и
+успешнее по результату: запас одного файла работает на другой, тогда как при раздаче каждому
+своей квоты один упрямый скан проваливает всю папку. Проходы поиска считают только размеры и
+тут же выбрасывают сжатые байты — папка любого размера помещается в память; проход, у которого
+накопленная сумма уже превысила предел, бросается сразу.
+
+По умолчанию результаты складываются в подпапку каждой папки-источника, а файлы прошлого запуска
+исключаются из поиска — повторный запуск с поиском во вложенных папках больше не сжимает
+собственный результат по второму кругу.
+
+## [0.1.3] — 2026-08-28
+
+**EN — Added:** an "About" button in the header with the version, author, repository link and
+update checking (background check at start-up, manual check, download, "update and restart").
+Sections are now separated by a thin rule with a faint arrow showing the direction of work.
+**Fixed:** the default output subfolder stopped being suggested after the very first run, because
+"the user picked this folder" was inferred from "settings contain an output folder"; it is now a
+separate flag. Squeezing the window vertically made sections overlap — the lists had a minimum
+height, so the rows no longer fit and Grid stacked them on top of each other.
+
+**RU — Добавлено:** кнопка «О программе» в шапке — версия, автор, ссылка на репозиторий и там же
+проверка обновлений (фоновая при старте, ручная, скачивание, «Обновить и перезапустить»).
+Разделы отделены тонкой линией с бледной стрелкой, показывающей направление работы.
+**Исправлено:** папка результатов по умолчанию переставала предлагаться после первого же запуска,
+потому что признак «папку выбрал пользователь» выводился из «в настройках есть папка вывода»;
+теперь это отдельный флаг. При сжатии окна по вертикали разделы наезжали друг на друга — у
+списков был минимальный размер, строки переставали помещаться, и Grid накладывал их одна на
+другую.
+
 ## [0.1.2] — 2026-08-27
 
 **EN — Fixed: files landed right on the size limit.** Sizes were counted in binary units

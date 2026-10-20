@@ -10,6 +10,9 @@ public partial class PdfFileItem : ObservableObject
 
     public PdfFileEntry Entry { get; }
 
+    /// <summary>Имя файла, а для вложенных — вместе с путём от папки-источника.</summary>
+    public string DisplayName => Entry.DisplayName;
+
     public string FileName => Entry.FileName;
     public string FullPath => Entry.FullPath;
     public long SizeBytes => Entry.SizeBytes;

@@ -72,4 +72,60 @@ public class PdfFileScannerTests : IDisposable
     {
         Assert.Throws<DirectoryNotFoundException>(() => _scanner.Scan(Path.Combine(_folder, "нет-такой")));
     }
+
+    [Fact]
+    public void Scan_ЗаполняетКореньИОтносительныйПуть()
+    {
+        Touch(Path.Combine("январь", "акты", "один.pdf"));
+
+        var entry = Assert.Single(_scanner.Scan(_folder, recursive: true));
+
+        Assert.Equal(Path.TrimEndingDirectorySeparator(_folder), entry.RootFolder);
+        Assert.Equal(Path.Combine("январь", "акты", "один.pdf"), entry.RelativePath);
+        Assert.Equal("январь", entry.TopLevelFolder);
+        Assert.Equal("один.pdf", entry.FileName);
+    }
+
+    [Fact]
+    public void ScanMany_СобираетФайлыИзНесколькихПапок()
+    {
+        Touch(Path.Combine("первая", "а.pdf"));
+        Touch(Path.Combine("вторая", "б.pdf"));
+
+        var found = _scanner.ScanMany(
+            new[] { Path.Combine(_folder, "первая"), Path.Combine(_folder, "вторая") },
+            recursive: false,
+            out var skipped);
+
+        Assert.Equal(2, found.Count);
+        Assert.Empty(skipped);
+    }
+
+    [Fact]
+    public void ScanMany_ВложенныеКорни_ФайлНеДублируется()
+    {
+        Touch(Path.Combine("внешняя", "внутренняя", "один.pdf"));
+
+        // Одна папка вложена в другую: с рекурсией файл виден из обеих.
+        var found = _scanner.ScanMany(
+            new[] { Path.Combine(_folder, "внешняя"), Path.Combine(_folder, "внешняя", "внутренняя") },
+            recursive: true,
+            out _);
+
+        Assert.Single(found);
+    }
+
+    [Fact]
+    public void ScanMany_НедоступнаяПапкаНеРоняетОстальные()
+    {
+        Touch("есть.pdf");
+
+        var found = _scanner.ScanMany(
+            new[] { _folder, Path.Combine(_folder, "нет-такой") },
+            recursive: false,
+            out var skipped);
+
+        Assert.Single(found);
+        Assert.Single(skipped);
+    }
 }

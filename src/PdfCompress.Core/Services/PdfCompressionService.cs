@@ -11,7 +11,7 @@ namespace PdfCompress.Core.Services;
 /// Исходный файл никогда не меняется по ходу обработки: результат пишется во временный файл
 /// рядом с целевым и переносится на место одним движением — прерывание не оставит обрубка.
 /// </summary>
-public class PdfCompressionService
+public partial class PdfCompressionService
 {
     /// <summary>
     /// Сколько уточняющих проходов делать при подборе под целевой размер. Каждый проход — это

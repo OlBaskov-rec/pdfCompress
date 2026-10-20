@@ -1,4 +1,5 @@
 using PdfCompress.Core.Models;
+using PdfCompress.Core.Services;
 
 namespace PdfCompress.Desktop.ViewModels;
 
@@ -33,10 +34,56 @@ public sealed class ResultRow
         };
     }
 
+    /// <summary>Заголовок группы: итог по папке, к которой применялся общий предел.</summary>
+    private ResultRow(FileGroup group, GroupCompressionResult result, long targetBytes)
+    {
+        IsGroupHeader = true;
+        FileName = group.Title;
+        Outcome = result.TargetReached ? CompressionOutcome.Compressed : CompressionOutcome.TargetNotReached;
+
+        double percent = result.OriginalBytes <= 0
+            ? 0
+            : 100.0 * (result.OriginalBytes - result.ResultBytes) / result.OriginalBytes;
+
+        string sizes = $"{SizeUnits.Format(result.OriginalBytes)} → {SizeUnits.Format(result.ResultBytes)} " +
+                       $"(−{percent:0.#} %) из {SizeUnits.Format(targetBytes)}";
+
+        string files = $"{result.Files.Count} {Plural(result.Files.Count, "файл", "файла", "файлов")}";
+
+        (Icon, Detail) = result.TargetReached
+            ? ("✓", $"{files} · {sizes}")
+            : ("!", $"{files} · {sizes} — в предел уложить не удалось");
+    }
+
+    /// <summary>
+    /// Русское склонение по числу: 1 файл, 2 файла, 5 файлов. Отдельные 11–14 — исключение,
+    /// они всегда идут с формой множественного числа.
+    /// </summary>
+    private static string Plural(int count, string one, string few, string many)
+    {
+        int lastTwo = Math.Abs(count) % 100;
+        if (lastTwo is >= 11 and <= 14)
+            return many;
+
+        return (Math.Abs(count) % 10) switch
+        {
+            1 => one,
+            2 or 3 or 4 => few,
+            _ => many,
+        };
+    }
+
+    /// <summary>Создаёт строку-заголовок для группы файлов с общим пределом.</summary>
+    public static ResultRow ForGroup(FileGroup group, GroupCompressionResult result, long targetBytes) =>
+        new(group, result, targetBytes);
+
     public string FileName { get; }
     public string Icon { get; }
     public string Detail { get; }
     public CompressionOutcome Outcome { get; }
+
+    /// <summary>Строка относится к папке целиком, а не к отдельному файлу — выделяется жирным.</summary>
+    public bool IsGroupHeader { get; }
 
     /// <summary>Ошибки и недостижение цели подсвечиваются в списке.</summary>
     public bool IsProblem => Outcome is CompressionOutcome.Failed or CompressionOutcome.TargetNotReached;
