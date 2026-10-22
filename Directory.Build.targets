@@ -1,0 +1,42 @@
+<Project>
+
+  <!--
+    PdfSharp тянет за собой System.Security.Cryptography.Pkcs 8.0.1 — пакет с двумя открытыми
+    уязвимостями (GHSA-2fmv-rv2c-59x7, GHSA-846f-f764-76mx, одна высокого уровня). Исправленной
+    версии пакета нет: предупреждение висит на всех опубликованных, включая 9.0 и 10.0, потому
+    что заплатка живёт в самом рантайме, а отдельный пакет остаётся как есть. Обновление PdfSharp
+    до 6.5.0 тоже не помогает — зависимость там та же (и 16 тестов от неё падают).
+
+    Нужен этот пакет ровно одному классу — PdfSharpDefaultSigner из PdfSharp.Cryptography.dll
+    (15 КБ, других публичных типов там нет). Он ставит на PDF цифровую подпись. Мы документы
+    только читаем и пересобираем, ничего не подписываем и не проверяем подписи, то есть уязвимый
+    разбор CMS/PKCS#7 не вызывается ни из одной нашей ветки.
+
+    Поэтому обе сборки просто не уезжают в поставку: ссылки в .NET разрешаются лениво, по мере
+    вызова методов, и отсутствие неиспользуемой сборки ничего не ломает. Проверяется это не на
+    словах: Directory.Build.targets действует и на тестовый проект, так что весь набор тестов
+    гоняет PDF через тот же состав сборок, что и готовое приложение.
+  -->
+  <PropertyGroup>
+    <_PdfCompressDroppedAssemblies>PdfSharp.Cryptography;System.Security.Cryptography.Pkcs</_PdfCompressDroppedAssemblies>
+  </PropertyGroup>
+
+  <!-- Обычная сборка: убираем из того, что копируется рядом с exe. -->
+  <Target Name="DropUnusedPdfSigningFromBuild" AfterTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths
+        Remove="@(ReferenceCopyLocalPaths)"
+        Condition="$([System.String]::Copy(';$(_PdfCompressDroppedAssemblies);').Contains(';%(Filename);'))" />
+    </ItemGroup>
+  </Target>
+
+  <!-- publish (в том числе self-contained для Velopack) считает список файлов отдельно. -->
+  <Target Name="DropUnusedPdfSigningFromPublish" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish
+        Remove="@(ResolvedFileToPublish)"
+        Condition="$([System.String]::Copy(';$(_PdfCompressDroppedAssemblies);').Contains(';%(Filename);'))" />
+    </ItemGroup>
+  </Target>
+
+</Project>
