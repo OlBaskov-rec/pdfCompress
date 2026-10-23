@@ -38,7 +38,36 @@ public partial class MainViewModel
     [ObservableProperty]
     private string updateCheckStatus = string.Empty;
 
+    /// <summary>
+    /// Сколько секунд ждать ответа на одну попытку проверки. Замеры на рабочей сети:
+    /// api.github.com отвечает то за 0,6 с, то за 17 с, то не отвечает вовсе — поэтому
+    /// 30 секунд мало, а бесконечно ждать нельзя.
+    /// </summary>
+    private const int CheckTimeoutSeconds = 45;
+
+    /// <summary>Попыток при ручной проверке — пользователь ждёт ответа и видит счётчик.</summary>
+    private const int ManualCheckAttempts = 3;
+
+    /// <summary>Попыток при фоновой проверке: тише и короче, результат никто не ждёт.</summary>
+    private const int BackgroundCheckAttempts = 2;
+
+    /// <summary>
+    /// Сколько ждать загрузку пакета. Обновление — это полсотни мегабайт (дельта меньше, но
+    /// с неизвестной Velopack версии приходит полный пакет), и на небыстром канале это минуты.
+    /// Прежние две минуты приводили к тому, что загрузка успевала дойти до конца уже ПОСЛЕ
+    /// того, как приложение сдалось: баннер не появлялся, хотя пакет лежал на диске.
+    /// </summary>
+    private const int DownloadTimeoutSeconds = 600;
+
     private bool _updateDownloaded;
+
+    /// <summary>
+    /// Уже идущая загрузка. Таймаут только перестаёт ждать, но работу не отменяет, поэтому
+    /// повторное нажатие должно дождаться ТУ ЖЕ загрузку, а не начать качать те же мегабайты
+    /// заново.
+    /// </summary>
+    private Task? _downloadTask;
+
     private string _availableVersion = string.Empty;
 
     /// <summary>
@@ -83,8 +112,25 @@ public partial class MainViewModel
         try
         {
             // Таймаут обязателен: без него при недоступной сети статус навсегда застрял бы
-            // на «Проверка…», а кнопка осталась бы заблокированной.
-            var version = await RunWithTimeout(() => _updateService.CheckAsync(), 30);
+            // на «Проверка…», а кнопка осталась бы заблокированной. А повторы обязательны
+            // потому, что api.github.com (куда ходит Velopack) отвечает неровно: замеры на
+            // рабочей сети дали 0,6 с, 17 с и полный таймаут вперемешку, тогда как сам
+            // github.com стабильно отвечает за секунду. С одной попытки проверка просто
+            // не доходит примерно в трети случаев.
+            string? version = null;
+            for (int attempt = 1; attempt <= ManualCheckAttempts; attempt++)
+            {
+                try
+                {
+                    version = await RunWithTimeout(() => _updateService.CheckAsync(), CheckTimeoutSeconds);
+                    break;
+                }
+                catch (TimeoutException) when (attempt < ManualCheckAttempts)
+                {
+                    UpdateCheckStatus = $"Сеть не ответила, повтор ({attempt + 1} из {ManualCheckAttempts})…";
+                }
+            }
+
             if (version is null)
             {
                 UpdateCheckStatus = "Установлена последняя версия.";
@@ -95,8 +141,12 @@ public partial class MainViewModel
             IsUpdateAvailable = true;
             UpdateCheckStatus = $"Найдено обновление {version}, скачиваю…";
 
-            await RunWithTimeout(() => _updateService.DownloadAsync(), 120);
-            _updateDownloaded = true;
+            if (!await TryDownloadAsync())
+            {
+                UpdateCheckStatus = $"Обновление {version} ещё скачивается. Загрузка продолжается — " +
+                                    "загляните сюда позже.";
+                return;
+            }
 
             // Ручная проверка — явное действие пользователя, поэтому баннер показываем сразу.
             UpdateText = $"Готово обновление {version}. Установить и перезапустить программу?";
@@ -133,13 +183,12 @@ public partial class MainViewModel
             UpdateCheckStatus = $"Скачиваю обновление {_availableVersion}…";
             try
             {
-                await RunWithTimeout(() => _updateService.DownloadAsync(), 120);
-                _updateDownloaded = true;
-            }
-            catch (TimeoutException)
-            {
-                UpdateCheckStatus = "Сеть не ответила вовремя. Попробуйте позже.";
-                return;
+                if (!await TryDownloadAsync())
+                {
+                    UpdateCheckStatus = $"Обновление {_availableVersion} ещё скачивается. " +
+                                        "Загрузка продолжается — нажмите ещё раз чуть позже.";
+                    return;
+                }
             }
             catch (Exception ex)
             {
@@ -167,12 +216,23 @@ public partial class MainViewModel
         try
         {
             // Вся работа Velopack (в том числе синхронные участки и сеть) — на пуле потоков и
-            // под таймаутом: запуск приложения не должен подвисать из-за проверки.
-            var check = Task.Run(() => _updateService.CheckAsync());
-            if (await Task.WhenAny(check, Task.Delay(TimeSpan.FromSeconds(20))) != check)
-                return; // сеть не ответила — тихо выходим, программа работает
+            // под таймаутом: запуск приложения не должен подвисать из-за проверки. Повтор —
+            // потому что api.github.com отвечает неровно (см. CheckTimeoutSeconds).
+            string? version = null;
+            for (int attempt = 1; attempt <= BackgroundCheckAttempts; attempt++)
+            {
+                try
+                {
+                    version = await RunWithTimeout(() => _updateService.CheckAsync(), CheckTimeoutSeconds);
+                    break;
+                }
+                catch (TimeoutException)
+                {
+                    if (attempt == BackgroundCheckAttempts)
+                        return; // сеть не ответила — тихо выходим, программа работает
+                }
+            }
 
-            var version = await check;
             if (version is null)
                 return;
 
@@ -200,6 +260,36 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>
+    /// Дожидается загрузки пакета, переиспользуя уже идущую. Возвращает false, если за
+    /// отведённое время загрузка не закончилась — но она продолжает идти, и следующий вызов
+    /// подхватит её же.
+    /// </summary>
+    private async Task<bool> TryDownloadAsync()
+    {
+        if (_updateDownloaded)
+            return true;
+
+        _downloadTask ??= Task.Run(() => _updateService.DownloadAsync());
+
+        var finished = await Task.WhenAny(_downloadTask, Task.Delay(TimeSpan.FromSeconds(DownloadTimeoutSeconds)));
+        if (finished != _downloadTask)
+            return false;
+
+        try
+        {
+            await _downloadTask; // пробрасываем исключение загрузки, если оно было
+        }
+        catch
+        {
+            _downloadTask = null; // сбой — следующая попытка начнёт заново
+            throw;
+        }
+
+        _updateDownloaded = true;
+        return true;
+    }
+
     /// <summary>Разворачивает цепочку вложенных исключений в одну строку — для диагностики.</summary>
     private static string DescribeError(Exception ex)
     {
@@ -221,12 +311,4 @@ public partial class MainViewModel
         return await task;
     }
 
-    /// <summary>Перегрузка для операций без результата.</summary>
-    private static async Task RunWithTimeout(Func<Task> work, int seconds)
-    {
-        var task = Task.Run(work);
-        if (await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(seconds))) != task)
-            throw new TimeoutException();
-        await task;
-    }
 }

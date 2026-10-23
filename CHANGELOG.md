@@ -4,6 +4,37 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект придерживается [семантического версионирования](https://semver.org/lang/ru/).
 
+## [0.2.1] — 2026-10-23
+
+**EN — Fixed: the update was downloaded but the banner never appeared.** The download had a
+two-minute timeout, which is not enough for a ~50 MB package on a slow link. Worse, a timeout
+here only stops waiting — it does not cancel the work, so the download quietly ran to completion
+after the app had already given up, and pressing the button again started the same fifty
+megabytes over. The wait is now ten minutes, and a repeated press joins the download already in
+progress instead of starting a new one.
+
+**Changed:** checking for updates now makes several attempts. Measurements on the work network:
+`api.github.com`, which is what Velopack talks to, answers in 0.6 s, then 17 s, then not at all,
+while `github.com` itself answers in about a second consistently. A single attempt simply missed
+roughly a third of the time.
+
+> Note for anyone on 0.1.0–0.1.2: those versions do not look for updates at all — the check was
+> added later. Update once by hand (new Portable.zip or Setup.exe); from 0.2.0 on it is automatic.
+
+**RU — Исправлено: обновление скачивалось, а баннер не появлялся.** На загрузку стоял таймаут
+в две минуты, а пакета там полсотни мегабайт — на небыстром канале этого мало. Хуже того, таймаут
+здесь только перестаёт ждать, но работу не отменяет: загрузка спокойно доходила до конца уже
+после того, как приложение сдалось, а повторное нажатие начинало качать те же мегабайты заново.
+Теперь ждём десять минут, а повторное нажатие подхватывает уже идущую загрузку.
+
+**Изменено:** проверка обновлений делает несколько попыток. Замеры на рабочей сети:
+`api.github.com`, куда ходит Velopack, отвечает то за 0,6 с, то за 17 с, то не отвечает вовсе,
+тогда как сам `github.com` стабильно отвечает за секунду. С одной попытки проверка не доходила
+примерно в трети случаев.
+
+> Тем, кто на 0.1.0–0.1.2: эти версии обновление не ищут вообще — проверка появилась позже.
+> Обновитесь один раз вручную (новый Portable.zip или Setup.exe), дальше будет автоматически.
+
 ## [0.2.0] — 2026-10-20
 
 **EN — Added: several source folders at once, and a size limit that applies to a folder rather
